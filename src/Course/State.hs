@@ -38,8 +38,7 @@ exec ::
   State s a
   -> s
   -> s
-exec =
-  error "todo: Course.State#exec"
+exec x s = snd (runState x s)
 
 -- | Run the `State` seeded with `s` and retrieve the resulting value.
 --
@@ -48,8 +47,7 @@ eval ::
   State s a
   -> s
   -> a
-eval =
-  error "todo: Course.State#eval"
+eval x s = fst (runState x s)
 
 -- | A `State` where the state also distributes into the produced value.
 --
@@ -57,8 +55,7 @@ eval =
 -- (0,0)
 get ::
   State s s
-get =
-  error "todo: Course.State#get"
+get = State $ \s -> (s, s)
 
 -- | A `State` where the resulting state is seeded with the given value.
 --
@@ -67,8 +64,7 @@ get =
 put ::
   s
   -> State s ()
-put =
-  error "todo: Course.State#put"
+put s = State $ \_ -> ((), s)
 
 -- | Implement the `Functor` instance for `State s`.
 --
@@ -79,8 +75,7 @@ instance Functor (State s) where
     (a -> b)
     -> State s a
     -> State s b
-  (<$>) =
-    error "todo: Course.State#(<$>)"
+  (<$>) f g = State $ \s0 -> let (a, s1) = runState g s0 in (f a, s1)
 
 -- | Implement the `Applicative` instance for `State s`.
 --
@@ -96,14 +91,15 @@ instance Applicative (State s) where
   pure ::
     a
     -> State s a
-  pure =
-    error "todo: Course.State pure#instance (State s)"
+  pure a = State $ \s -> (a, s)
   (<*>) ::
     State s (a -> b)
     -> State s a
     -> State s b
-  (<*>) =
-    error "todo: Course.State (<*>)#instance (State s)"
+  (<*>) mf ma = State $ \s0 ->
+    let (f, s1) = runState mf s0
+        (a, s2) = runState ma s1
+     in (f a, s2)
 
 -- | Implement the `Monad` instance for `State s`.
 --
@@ -117,8 +113,8 @@ instance Monad (State s) where
     (a -> State s b)
     -> State s a
     -> State s b
-  (=<<) =
-    error "todo: Course.State (=<<)#instance (State s)"
+  (=<<) f ma = State $ \s0 ->
+    let (a, s1) = runState ma s0 in runState (f a) s1
 
 -- | Find the first element in a `List` that satisfies a given predicate.
 -- It is possible that no element is found, hence an `Optional` result.
@@ -139,8 +135,22 @@ findM ::
   (a -> f Bool)
   -> List a
   -> f (Optional a)
-findM =
-  error "todo: Course.State#findM"
+findM p xs = eval (findM' p xs) (pure (False, Empty))
+
+-- My observation: There *has* to be a better way than this. Yuck.
+findM' ::
+  Monad f =>
+  (a -> f Bool)
+  -> List a
+  -> State (f (Bool, Optional a)) (f (Optional a))
+findM' _ Nil = get >>= (\mx -> pure (snd <$> mx))
+findM' p (a :. as) = get >>= (\mx -> put (f mx) >> findM' p as)
+    where f mz = mz >>= (\(found, item) -> 
+                 p a >>= (\foundNext ->
+                            case (found, foundNext) of
+                              (True, _) -> pure (found, item)
+                              (_, True) -> pure (foundNext, Full a)
+                              _         -> pure (False, Empty)))
 
 -- | Find the first element in a `List` that repeats.
 -- It is possible that no element repeats, hence an `Optional` result.
