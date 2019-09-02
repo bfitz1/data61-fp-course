@@ -135,22 +135,13 @@ findM ::
   (a -> f Bool)
   -> List a
   -> f (Optional a)
-findM p xs = eval (findM' p xs) (pure (False, Empty))
+findM _ Nil = pure Empty
+findM p (a :. as) = (\x -> if x then pure (Full a) else findM p as) =<< p a
 
--- My observation: There *has* to be a better way than this. Yuck.
-findM' ::
-  Monad f =>
-  (a -> f Bool)
-  -> List a
-  -> State (f (Bool, Optional a)) (f (Optional a))
-findM' _ Nil = get >>= (\mx -> pure (snd <$> mx))
-findM' p (a :. as) = get >>= (\mx -> put (f mx) >> findM' p as)
-    where f mz = mz >>= (\(found, item) -> 
-                 p a >>= (\foundNext ->
-                            case (found, foundNext) of
-                              (True, _) -> pure (found, item)
-                              (_, True) -> pure (foundNext, Full a)
-                              _         -> pure (False, Empty)))
+-- My observation: I think I overthought this. Maybe the `Monad f`
+-- in question *could* be State s, and we use that later.
+
+-- EDIT: Yep!
 
 -- | Find the first element in a `List` that repeats.
 -- It is possible that no element repeats, hence an `Optional` result.
@@ -163,8 +154,9 @@ firstRepeat ::
   Ord a =>
   List a
   -> Optional a
-firstRepeat =
-  error "todo: Course.State#firstRepeat"
+firstRepeat as = 
+  let p a = State $ \s -> (S.member a s, S.insert a s) 
+  in eval (findM p as) S.empty
 
 -- | Remove all duplicate elements in a `List`.
 -- /Tip:/ Use `filtering` and `State` with a @Data.Set#Set@.
@@ -176,8 +168,9 @@ distinct ::
   Ord a =>
   List a
   -> List a
-distinct =
-  error "todo: Course.State#distinct"
+distinct as =
+  let p a = State $ \s -> (not (S.member a s), S.insert a s)
+  in eval (filtering p as) S.empty
 
 -- | A happy number is a positive integer, where the sum of the square of its digits eventually reaches 1 after repetition.
 -- In contrast, a sad number (not a happy number) is where the sum of the square of its digits never reaches 1
@@ -203,5 +196,6 @@ distinct =
 isHappy ::
   Integer
   -> Bool
-isHappy =
-  error "todo: Course.State#isHappy"
+isHappy n = 
+  let square x = undefined
+  in contains 1 $ firstRepeat (produce square n)
