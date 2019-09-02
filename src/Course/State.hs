@@ -193,9 +193,14 @@ distinct as =
 --
 -- >>> isHappy 44
 -- True
-isHappy ::
-  Integer
+isHappy :: 
+  Int      
   -> Bool
 isHappy n = 
-  let square x = undefined
+  let square x = sum $ (\y -> y*y) . digitToInt <$> (listh (show x))
   in contains 1 $ firstRepeat (produce square n)
+
+-- Note that the type signature originally used `Integer`.
+
+-- This can't work with digitToInt because produce requires a -> a
+-- but square is Integer -> Int. I think this is a mistake.
